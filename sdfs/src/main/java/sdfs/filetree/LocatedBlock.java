@@ -1,10 +1,8 @@
 package sdfs.filetree;
 
-import java.io.Serializable;
 
-public class LocatedBlock implements Serializable {
+public class LocatedBlock{
 
-    private static final long serialVersionUID = 7904651623629246517L;
     private final int blockNumber;
 
     public LocatedBlock(int blockNumber) {

@@ -1,13 +1,16 @@
 package sdfs.filetree;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
 
 public class Entry implements Serializable {
 
-    private static final long serialVersionUID = 3144725739905189208L;
-    private Node node;
+    private static final long serialVersionUID = -1256556490076421777L;
+    private transient Node node;
 
-    private String name;
+    private transient String name;
 
     public Entry(String name, Node node) {
         if (name == null || node == null) {
@@ -42,5 +45,17 @@ public class Entry implements Serializable {
     @Override
     public int hashCode() {
         return name.hashCode();
+    }
+
+    private void writeObject(ObjectOutputStream oos) throws IOException {
+        oos.defaultWriteObject();
+        oos.writeObject(node);
+        oos.writeUTF(name);
+    }
+
+    private void readObject(ObjectInputStream ois) throws IOException, ClassNotFoundException {
+        ois.defaultReadObject();
+        this.node = (Node) ois.readObject();
+        this.name = ois.readUTF();
     }
 }
