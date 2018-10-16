@@ -23,7 +23,7 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
 
     private boolean isOpen;
 
-    private long position;
+    private long position; //读取或写入指针位置
 
     private static NameNode nameNode = NameNode.getInstance();
     private static DataNode dataNode = DataNode.getInstance();
@@ -34,15 +34,23 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
         this.fileNode = fileNode;
         this.isReadOnly = isReadOnly;
 
-        // TODO your code here
         isOpen = true;
         position = 0;
     }
 
-
+    /**
+     * 从channel读取bytes到dst
+     * <p>
+     * 从当前读取指针位置开始读取
+     * 更新当前指针到实际读取到的位置
+     *
+     * @return 实际读取的字节数，失败返回-1
+     */
     @Override
     public int read(ByteBuffer dst) throws IOException {
-        // TODO your code here
+        if (!isOpen()) //文件流处于打开状态
+            throw new ClosedChannelException();
+
         if (fileNode == null || fileNode.getFileSize() - position <= 0)
             return -1;
         long fileSize = fileNode.getFileSize();
@@ -88,12 +96,21 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
         return realSize;
     }
 
-
+    /**
+     * 将src包含的字节写入channel
+     * <p>
+     * 从当前指针处开始写入字节
+     * 更新当前指针到最后写入的位置
+     *
+     * @return 实际写入的字节数，失败返回-1
+     */
     @Override
     public int write(ByteBuffer src) throws IOException {
-        // TODO your code here
+        if (!isOpen()) //文件流处于打开状态
+            throw new ClosedChannelException();
+
         if (fileNode == null)
-            return 0;
+            return -1;
         byte[] srcBytes = src.array();
 
         int firstBlockIndex = (int) (position / DataNode.BLOCK_SIZE);
@@ -141,42 +158,58 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
     }
 
 
+    /**
+     * @return channel的当前读写指针位置
+     */
     @Override
     public long position() throws IOException {
-        // TODO your code here
-        if (!isOpen())
+        if (!isOpen()) //文件流处于打开状态
             throw new ClosedChannelException();
         return position;
     }
 
 
+    /**
+     * 设置channel的当前读写位置position
+     *
+     * @return this
+     */
     @Override
     public SeekableByteChannel position(long newPosition) throws IOException {
-        // TODO your code here
-        if (!isOpen())
+        if (!isOpen()) //文件流处于打开状态
             throw new ClosedChannelException();
-        if (newPosition < 0)
+        if (newPosition < 0) //非负数
             throw new IllegalArgumentException();
         position = newPosition;
         return this;
     }
 
 
+    /**
+     * @return 当前channel连接到的文件大小
+     */
     @Override
     public long size() throws IOException {
-        // TODO your code here
-        if (!isOpen())
+        if (!isOpen()) //文件流处于打开状态
             throw new ClosedChannelException();
         return fileNode.getFileSize();
     }
 
 
+    /**
+     * truncate：指掐头或去尾
+     * <p>
+     * 如果给定size小于文件大小，则去掉文件大于size部分的内容
+     * 如果size大于或等于文件大小，则不做改变
+     * 如果当前position大于size，则设position等于size
+     *
+     * @return this
+     */
     @Override
     public SeekableByteChannel truncate(long size) throws IOException {
-        // TODO your code here
-        if (isReadOnly())
+        if (isReadOnly()) //只读文件流不允许truncate
             throw new NonWritableChannelException();
-        if (!isOpen())
+        if (!isOpen()) //channel应当处于打开状态
             throw new ClosedChannelException();
         if (size < 0)
             throw new IllegalArgumentException();
@@ -184,25 +217,35 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
         long fileSize = fileNode.getFileSize();
         if (fileSize <= size) //不做改变
             return this;
-        if (position > size)
+        if (position > size) //position大于size，则设position等于size
             position = size;
         setFileSize(size);
         nameNode.removeLastBlocks(uuid, (int) (fileSize / DataNode.BLOCK_SIZE - size / DataNode.BLOCK_SIZE));
         return this;
     }
 
+    /**
+     *
+     * @return channel是否打开
+     */
     @Override
     public boolean isOpen() {
-        // TODO your code here
         return isOpen;
     }
 
+    /**
+     * 关闭channel
+     * 将缓冲区内容写入磁盘
+     */
     @Override
     public void close() throws IOException {
-        // TODO your code here
-        if (!isOpen())
+        if (!isOpen()) //channel应当处于打开状态
             return;
         isOpen = false;
+        if (isReadOnly())
+            nameNode.closeReadonlyFile(uuid);
+        else
+            nameNode.closeReadwriteFile(uuid, (int) (position < fileNode.getFileSize() ? fileNode.getFileSize() : position));
         flush();
     }
 
@@ -214,7 +257,6 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
      */
     @Override
     public void flush() throws IOException {
-        // TODO your code here
         ObjectOutputStream outputStream =
                 new ObjectOutputStream(new FileOutputStream(new File(NameNode.NAMENODE_DATA_DIR + getFileNodeId() + ".node")));
         outputStream.writeObject(fileNode);
@@ -255,6 +297,8 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
      * @param fileSize new size
      */
     public void setFileSize(long fileSize) {
+        if (fileSize < 0)
+            return;
         this.fileNode.setFileSize(fileSize);
     }
 

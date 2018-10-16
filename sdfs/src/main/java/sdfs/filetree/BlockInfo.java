@@ -9,9 +9,9 @@ public class BlockInfo implements Iterable<LocatedBlock>, Serializable {
 
     private static final long serialVersionUID = 2256744734112432185L;
     /**
-     * BlockInfo stores a list of LocatedBlocks with each of them contains the address and ID of a replica of the block.
+     * 每个BlockInfo代表每个数据块的信息
+     * LocatedBlock代表一个数据块，每个数据块会有多个备份存在locatedBlocks
      */
-
     private final List<LocatedBlock> locatedBlocks = new ArrayList<>();
 
 

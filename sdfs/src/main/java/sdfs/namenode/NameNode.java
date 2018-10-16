@@ -1,6 +1,7 @@
 package sdfs.namenode;
 
 import sdfs.client.SDFSFileChannel;
+import sdfs.datanode.DataNode;
 import sdfs.filetree.*;
 import sdfs.util.FileUtil;
 
@@ -15,8 +16,13 @@ public class NameNode implements INameNode {
     private static String rootNodePath = NAMENODE_DATA_DIR + "0.node";
     private static int blockId = 0;
 
+    /**
+     * SDFSFileChannel包括对应FileNode信息
+     * 每个FileNode包括多个BlockInfo
+     * 根据BlockInfo对象可以寻找到单个块对应的所有备份，即LocatedBlock对象列表
+     * 根据不同的LocatedBlock中的blockNumber寻找到对应的DataNode节点上的数据块
+     */
     private NameNode() {
-        // TODO, your code here
         channels = new HashMap<>();
         try {
             ObjectInputStream inputStream =
@@ -43,20 +49,13 @@ public class NameNode implements INameNode {
 
 
     /**
-     * 返回指定路径的SDFSFileChannel对象
-     * SDFSFileChannel包括对应FileNode信息
-     * 每个FileNode包括多个BlockInfo
-     * 根据BlockInfo对象可以寻找到单个块对应的所有备份，即LocatedBlock对象列表
-     * 根据不同的LocatedBlock中的blockNumber寻找到对应的DataNode节点上的数据块
+     * 以”只读“方式打开一个文件流
      *
      * @param fileUri The file uri to be open
      * @return SDFSFileChannel Instance
-     * @throws InvalidPathException
-     * @throws FileNotFoundException
      */
     @Override
     public SDFSFileChannel openReadonly(String fileUri) throws InvalidPathException, FileNotFoundException {
-        // TODO your code here
         if (fileUri == null || fileUri.isEmpty())
             throw new InvalidPathException("", "");
         FileNode fileNode = (FileNode) rootNode.lookUp(fileUri, Node.TYPE.FILE);
@@ -65,24 +64,36 @@ public class NameNode implements INameNode {
             channels.put(channel.getUuid(), channel);
             return channel;
         }
-        return null;
+        throw new FileNotFoundException();
     }
 
+
+    /**
+     * 以”读写“方式打开一个文件流
+     *
+     * @param fileUri The file uri to be open
+     */
     @Override
     public SDFSFileChannel openReadwrite(String fileUri) throws InvalidPathException, FileNotFoundException, IllegalStateException {
-        // TODO your code here
         FileNode fileNode = (FileNode) rootNode.lookUp(fileUri, Node.TYPE.FILE);
-        if (fileNode != null && !readWriteTwice(fileNode)) {
-            SDFSFileChannel channel = new SDFSFileChannel(UUID.randomUUID(), fileNode, false);
-            channels.put(channel.getUuid(), channel);
-            return channel;
+        if (fileNode != null) {
+            if (!readWriteTwice(fileNode)) {
+                SDFSFileChannel channel = new SDFSFileChannel(UUID.randomUUID(), fileNode, false);
+                channels.put(channel.getUuid(), channel);
+                return channel;
+            } else throw new IllegalStateException();
         }
-        return null;
+        throw new FileNotFoundException();
     }
 
+    /**
+     * 新建一个文件
+     * 如果父目录不存在，则先创建父目录
+     *
+     * @param fileUri The file uri to be create
+     */
     @Override
     public SDFSFileChannel create(String fileUri) throws FileAlreadyExistsException, InvalidPathException {
-        // TODO your code here
         if (rootNode.lookUp(fileUri, Node.TYPE.FILE) != null)
             throw new FileAlreadyExistsException(fileUri);
         if (FileUtil.isValidPath(fileUri)) {
@@ -103,44 +114,75 @@ public class NameNode implements INameNode {
         return null;
     }
 
+    /**
+     * 通过唯一标识码fileUuid打开一个已存在的可”读“文件流
+     *
+     * @param fileUuid the file uuid with readonly state
+     */
     @Override
     public SDFSFileChannel getReadonlyFile(UUID fileUuid) throws IllegalStateException {
-        // TODO your code here
         SDFSFileChannel channel = channels.get(fileUuid);
-        if (!channel.isReadOnly())
+        if (channel == null || !channel.isReadOnly())
             throw new IllegalStateException();
         return channel;
 
     }
 
+    /**
+     * 通过唯一标识码fileUuid打开一个已存在的可”读写“文件流
+     *
+     * @param fileUuid the file uuid with readwrite state
+     */
     @Override
     public SDFSFileChannel getReadwriteFile(UUID fileUuid) throws IllegalStateException {
-        // TODO your code here
         SDFSFileChannel channel = channels.get(fileUuid);
-        if (channel.isReadOnly())
+        if (channel == null || channel.isReadOnly())
             throw new IllegalStateException();
         return channel;
     }
 
+    /**
+     * 关闭一个“可读”文件流
+     *
+     * @param fileUuid file to be closed
+     */
     @Override
     public void closeReadonlyFile(UUID fileUuid) throws IllegalStateException {
-        // TODO your code here
 //        SDFSFileChannel channel = channels.get(fileUuid);
 //        channel.close();
+        if (fileUuid == null || !channels.containsKey(fileUuid))
+            throw new IllegalStateException();
         channels.remove(fileUuid);
     }
 
+    /**
+     * 关闭一个可“读写”文件流
+     *
+     * @param fileUuid    file to be closed
+     * @param newFileSize The new file size after modify
+     */
     @Override
     public void closeReadwriteFile(UUID fileUuid, int newFileSize) throws IllegalStateException, IllegalArgumentException {
-        // TODO your code here
 //        SDFSFileChannel channel = channels.get(fileUuid);
 //        channel.close();
+        if (fileUuid == null || !channels.containsKey(fileUuid))
+            throw new IllegalStateException();
+        SDFSFileChannel channel = channels.get(fileUuid);
+        //文件大小应当处于（(blockAmount - 1) * BLOCK_SIZE, blockAmount * BLOCK_SIZE)，即最后一个块可能没装满
+        if (newFileSize < (channel.getNumBlocks() - 1) * DataNode.BLOCK_SIZE
+                || newFileSize > channel.getNumBlocks() * DataNode.BLOCK_SIZE)
+            throw new IllegalArgumentException();
         channels.remove(fileUuid);
     }
 
+    /**
+     * 递归创建目录
+     * 如果父目录不存在，则先创建父目录
+     *
+     * @param fileUri the directory path
+     */
     @Override
     public void mkdir(String fileUri) throws InvalidPathException, FileAlreadyExistsException {
-        // TODO your code here
         if (FileUtil.isValidDir(fileUri)) {
             if (rootNode.lookUp(fileUri, Node.TYPE.DIR) != null)
                 throw new FileAlreadyExistsException(fileUri);
@@ -158,12 +200,20 @@ public class NameNode implements INameNode {
         }
     }
 
+    /**
+     * 为一个文件添加一个空闲块，这个块备份blockAmount次，即每个文件的块有blockAmount个备份
+     *
+     * @param fileUuid    the file uuid with readwrite state
+     * @param blockAmount the request block amount
+     * @return 返回空闲块列表
+     */
     @Override
     public List<LocatedBlock> addBlocks(UUID fileUuid, int blockAmount) throws IllegalStateException {
-        // TODO your code here
-        if (fileUuid == null || blockAmount < 0)
-            return null;
+        if (fileUuid == null || !channels.containsKey(fileUuid))
+            throw new IllegalStateException();
         SDFSFileChannel channel = getReadwriteFile(fileUuid);
+        if (blockAmount < 0)
+            return null;
         FileNode node = channel.getFileNode();
         ArrayList<LocatedBlock> blocks = new ArrayList<>();
         for (int i = 0; i < blockAmount; i++) {
@@ -175,9 +225,18 @@ public class NameNode implements INameNode {
         return blocks;
     }
 
+    /**
+     * 删掉一个文件的最后blockAmount个块
+     *
+     * @param fileUuid    the file uuid with readwrite state
+     * @param blockAmount the blocks amount to be removed
+     * @throws IllegalStateException
+     * @throws IllegalArgumentException
+     */
     @Override
     public void removeLastBlocks(UUID fileUuid, int blockAmount) throws IllegalStateException, IllegalArgumentException {
-        // TODO your code here
+        if (fileUuid == null || !channels.containsKey(fileUuid))
+            throw new IllegalStateException();
         SDFSFileChannel rwc = getReadwriteFile(fileUuid);
         if (blockAmount < 0 || rwc.getNumBlocks() < blockAmount)
             throw new IllegalArgumentException();
@@ -192,6 +251,9 @@ public class NameNode implements INameNode {
         }
     }
 
+    /**
+     * 将文件元数据信息node写入磁盘
+     */
     private void addNode(Node node) {
         try {
             ObjectOutputStream os =
@@ -204,6 +266,9 @@ public class NameNode implements INameNode {
         }
     }
 
+    /**
+     * 判断一个文件fileNode是否以“读写”方式打开两次
+     */
     private boolean readWriteTwice(FileNode fileNode) {
         Iterator<SDFSFileChannel> it;
         SDFSFileChannel channel;
