@@ -240,15 +240,7 @@ public class NameNode implements INameNode {
         SDFSFileChannel rwc = getReadwriteFile(fileUuid);
         if (blockAmount < 0 || rwc.getNumBlocks() < blockAmount)
             throw new IllegalArgumentException();
-        try {
-            FileNode node = rwc.getFileNode();
-            ObjectOutputStream outputStream =
-                    new ObjectOutputStream(new FileOutputStream(new File(NAMENODE_DATA_DIR + node.getNodeId() + ".node")));
-            node.removeLastBlocks(blockAmount);
-            outputStream.writeObject(node);
-        } catch (IOException ignored) {
-
-        }
+        rwc.setFileSize((rwc.getNumBlocks() - blockAmount) * DataNode.BLOCK_SIZE);
     }
 
     /**
