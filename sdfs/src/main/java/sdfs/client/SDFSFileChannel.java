@@ -24,9 +24,9 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
     private boolean isOpen;
 
     private long position; //读取或写入指针位置
-
-    private static NameNode nameNode = NameNode.getInstance();
-    private static DataNode dataNode = DataNode.getInstance();
+    
+    private static NameNodeStub nameNodeStub = new NameNodeStub();
+    private static DataNodeStub dataNodeStub = new DataNodeStub();
 
 
     public SDFSFileChannel(UUID uuid, FileNode fileNode, boolean isReadOnly) {
@@ -74,18 +74,18 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
             if (blockIt.hasNext()) {
                 if (readSize >= DataNode.BLOCK_SIZE && infoIt.hasNext()) {
                     //不是最后一个块，并且buffer剩余空间足够放一个block的内容
-                    dst.put(dataNode.read(uuid, blockIt.next().getBlockNumber(), offset, DataNode.BLOCK_SIZE));
+                    dst.put(dataNodeStub.read(uuid, blockIt.next().getBlockNumber(), offset, DataNode.BLOCK_SIZE));
                     readSize -= DataNode.BLOCK_SIZE;
 //                    position(position + DataNode.BLOCK_SIZE);
                 } else if (infoIt.hasNext()) {
                     //不是最后一个块，但buffer剩余空间不够放一个block的内容
-                    dst.put(dataNode.read(uuid, blockIt.next().getBlockNumber(), offset, readSize));
+                    dst.put(dataNodeStub.read(uuid, blockIt.next().getBlockNumber(), offset, readSize));
 //                    readSize = 0;
 //                    position(position + readSize);
                     break;
                 } else if (!infoIt.hasNext()) {//最后一个块
                     int tmpSize = lastBlockSize > readSize ? readSize : lastBlockSize;
-                    dst.put(dataNode.read(uuid, blockIt.next().getBlockNumber(), offset, tmpSize));
+                    dst.put(dataNodeStub.read(uuid, blockIt.next().getBlockNumber(), offset, tmpSize));
                     readSize -= tmpSize;
 //                    position(position + tmpSize);
                 }
@@ -128,12 +128,12 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
             blockIt = infoIt.next().iterator();
             if (blockIt.hasNext() && offset != 0) { //这个block没装满 //最后一个块
                 byte[] tmpBytes = Arrays.copyOfRange(srcBytes, 0, DataNode.BLOCK_SIZE - offset);
-                dataNode.write(uuid, blockIt.next().getBlockNumber(), offset, tmpBytes);
+                dataNodeStub.write(uuid, blockIt.next().getBlockNumber(), offset, tmpBytes);
                 srcBytes = Arrays.copyOfRange(srcBytes, DataNode.BLOCK_SIZE - offset, srcBytes.length);
                 firstBlockIndex += 1;
                 position(position + DataNode.BLOCK_SIZE - offset);
                 if (infoIt.hasNext()) //覆盖指针后的块（删除）
-                    nameNode.removeLastBlocks(uuid, fileNode.getNumBlocks() - count);
+                    nameNodeStub.removeLastBlocks(uuid, fileNode.getNumBlocks() - count);
 
             }
         }
@@ -143,9 +143,9 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
         for (int i = 0; i < blockNums; i++) {
             byte[] tmpBytes = Arrays.copyOfRange(srcBytes, i * DataNode.BLOCK_SIZE,
                     i * DataNode.BLOCK_SIZE + (i == (blockNums - 1) ? lastBlockSize : DataNode.BLOCK_SIZE));
-            List<LocatedBlock> blocks = nameNode.addBlocks(uuid, NameNode.LOCATED_BLOCK_NUM);
+            List<LocatedBlock> blocks = nameNodeStub.addBlocks(uuid, NameNode.LOCATED_BLOCK_NUM);
             for (LocatedBlock block : blocks) {
-                dataNode.write(uuid, block.getBlockNumber(), 0, tmpBytes);
+                dataNodeStub.write(uuid, block.getBlockNumber(), 0, tmpBytes);
             }
 //            BlockInfo info = new BlockInfo();.
 //            info.addLocatedBlocks(blocks);
@@ -220,12 +220,11 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
         if (position > size) //position大于size，则设position等于size
             position = size;
         setFileSize(size);
-        nameNode.removeLastBlocks(uuid, (int) (fileSize / DataNode.BLOCK_SIZE - size / DataNode.BLOCK_SIZE));
+        nameNodeStub.removeLastBlocks(uuid, (int) (fileSize / DataNode.BLOCK_SIZE - size / DataNode.BLOCK_SIZE));
         return this;
     }
 
     /**
-     *
      * @return channel是否打开
      */
     @Override
@@ -243,9 +242,9 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
             return;
         isOpen = false;
         if (isReadOnly())
-            nameNode.closeReadonlyFile(uuid);
+            nameNodeStub.closeReadonlyFile(uuid);
         else
-            nameNode.closeReadwriteFile(uuid, (int) (position < fileNode.getFileSize() ? fileNode.getFileSize() : position));
+            nameNodeStub.closeReadwriteFile(uuid, (int) (position < fileNode.getFileSize() ? fileNode.getFileSize() : position));
         flush();
     }
 
