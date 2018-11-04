@@ -133,7 +133,8 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
                 firstBlockIndex += 1;
                 position(position + DataNode.BLOCK_SIZE - offset);
                 if (infoIt.hasNext()) //覆盖指针后的块（删除）
-                    nameNode.removeLastBlocks(uuid, fileNode.getNumBlocks() - count);
+                    setFileSize(position);
+//                    nameNode.removeLastBlocks(uuid, fileNode.getNumBlocks() - count);
 
             }
         }
@@ -220,7 +221,6 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
         if (position > size) //position大于size，则设position等于size
             position = size;
         setFileSize(size);
-        nameNode.removeLastBlocks(uuid, (int) (fileSize / DataNode.BLOCK_SIZE - size / DataNode.BLOCK_SIZE));
         return this;
     }
 

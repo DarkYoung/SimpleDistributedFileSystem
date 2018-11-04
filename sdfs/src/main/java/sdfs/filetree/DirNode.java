@@ -54,6 +54,7 @@ public class DirNode extends Node implements Iterable<Entry> {
                     ObjectInputStream inputStream =
                             new ObjectInputStream(new FileInputStream(new File(
                                     System.getProperty("sdfs.namenode.dir") + "/" + entry.getNode().getNodeId() + ".node")));
+
                     node = (Node) inputStream.readObject();
                 } catch (IOException | ClassNotFoundException ignored) {
 
