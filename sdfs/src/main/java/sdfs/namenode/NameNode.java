@@ -1,20 +1,31 @@
 package sdfs.namenode;
 
+import sdfs.Invocation;
+import sdfs.Registry;
+import sdfs.Response;
+import sdfs.Url;
 import sdfs.client.SDFSFileChannel;
 import sdfs.datanode.DataNode;
 import sdfs.filetree.*;
 import sdfs.util.FileUtil;
 
 import java.io.*;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.InvalidPathException;
 import java.util.*;
+
+import static sdfs.Contants.DEFAULT_NAME_NODE_PORT;
 
 public class NameNode implements INameNode {
     private Map<UUID, SDFSFileChannel> channels;
     private DirNode rootNode;
     private static String rootNodePath = NAMENODE_DATA_DIR + "0.node";
     private static int blockId = 0;
+    private int port = DEFAULT_NAME_NODE_PORT;
 
     /**
      * SDFSFileChannel包括对应FileNode信息
@@ -22,7 +33,7 @@ public class NameNode implements INameNode {
      * 根据BlockInfo对象可以寻找到单个块对应的所有备份，即LocatedBlock对象列表
      * 根据不同的LocatedBlock中的blockNumber寻找到对应的DataNode节点上的数据块
      */
-    private NameNode() {
+    public NameNode() {
         channels = new HashMap<>();
         try {
             ObjectInputStream inputStream =
@@ -41,12 +52,54 @@ public class NameNode implements INameNode {
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         }
+        //默认主机：localhost，默认端口：port
+        register("localhost", port);
     }
 
-    public static NameNode getInstance() {
-        return SingletonHolder.INSTANCE;
+    /**
+     * 将所有public函数注册到注册中心，只有注册的函数才能被远程调用
+     */
+    public void register(String host, int port) {
+        this.port = port;
+        Registry.register(new Url(host, port, getClass().getName()));
+
     }
 
+    /* listening requests from client */
+    public void listenRequest() {
+        //TODO
+        try (ServerSocket listener = new ServerSocket(port)) {
+            while (true) {
+                try (Socket socket = listener.accept()) {
+                    Response response = new Response();
+                    //将请求反序列化
+                    ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
+                    Object object = null;
+                    try {
+                        object = objectInputStream.readObject();
+                        //调用服务
+                        if (object instanceof Invocation) {
+                            //利用反射机制调用对应的方法
+                            Invocation invocation = (Invocation) object;
+                            Method method = getClass().getMethod(invocation.getMethodName(), invocation.getParameterTypes());
+                            response.setReturnType(method.getReturnType());
+                            response.setReturnValue(method.invoke(this, invocation.getArguments()));
+                        } else {
+                            throw new UnsupportedOperationException();
+                        }
+                    } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+                        response.setException(e);
+                    } finally {
+                        //返回结果
+                        ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+                        objectOutputStream.writeObject(response);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     /**
      * 以”只读“方式打开一个文件流
@@ -278,12 +331,5 @@ public class NameNode implements INameNode {
                 throw new IllegalStateException();
         }
         return false;
-    }
-
-    /**
-     * In the first lab, NameNode is a singleton
-     */
-    private static class SingletonHolder {
-        private static final NameNode INSTANCE = new NameNode();
     }
 }

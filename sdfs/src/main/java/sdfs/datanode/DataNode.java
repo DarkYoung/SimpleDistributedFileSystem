@@ -1,22 +1,41 @@
 package sdfs.datanode;
 
 
+import sdfs.Registry;
+import sdfs.Url;
+
 import java.io.*;
 import java.util.UUID;
+
+import static sdfs.Contants.DEFAULT_DATA_NODE_PORT;
 
 public class DataNode implements IDataNode, Serializable {
 
     private static final long serialVersionUID = 963270564695516201L;
 
-    private DataNode() {
+    private int port = DEFAULT_DATA_NODE_PORT;
+
+    public DataNode() {
     }
 
-    public static DataNode getInstance() {
-        return SingletonHolder.INSTANCE;
+
+    /**
+     * 将所有public函数注册到注册中心，只有注册的函数才能被远程调用
+     */
+    public void register(String host, int port) {
+        this.port = port;
+        Registry.register(new Url(host, port, getClass().getName()));
+
+    }
+
+    /* listening requests from client */
+    public void listenRequest() {
+        //TODO
     }
 
     /**
      * 从指定block（blockNumber.block）处读取数据
+     *
      * @param fileUuid    the file uuid to check whether have permission to read or not. (not used in lab 1)
      * @param blockNumber the block number to be read
      * @param offset      the offset on the block file
@@ -40,6 +59,7 @@ public class DataNode implements IDataNode, Serializable {
 
     /**
      * 写入数据到指定block（blockNumber.block)
+     *
      * @param fileUuid    the file uuid to check whether have permission to write or not. (not used in lab 1)
      * @param blockNumber the block number to be written
      * @param offset      the offset on the block file
@@ -53,13 +73,5 @@ public class DataNode implements IDataNode, Serializable {
             throw new IndexOutOfBoundsException();
         BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(file));
         outputStream.write(b, offset, b.length);
-    }
-
-
-    /**
-     * In the first lab, DataNode is a singleton
-     */
-    private static class SingletonHolder {
-        private static final DataNode INSTANCE = new DataNode();
     }
 }
