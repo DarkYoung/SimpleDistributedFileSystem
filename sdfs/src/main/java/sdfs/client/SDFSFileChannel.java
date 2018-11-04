@@ -24,7 +24,7 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable {
     private boolean isOpen;
 
     private long position; //读取或写入指针位置
-    
+
     private static NameNodeStub nameNodeStub = new NameNodeStub();
     private static DataNodeStub dataNodeStub = new DataNodeStub();
 
