@@ -18,7 +18,7 @@ class DataNodeTest {
 
     @Test
     void testWriteAndRead() {
-        DataNode dataNode = DataNode.getInstance();
+        DataNode dataNode = new DataNode();
 
         // Write offset is negative
         try {

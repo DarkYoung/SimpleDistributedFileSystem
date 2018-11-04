@@ -1,8 +1,10 @@
+
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import sdfs.client.SDFSClient;
 import sdfs.client.SDFSFileChannel;
 import sdfs.datanode.DataNode;
+import sdfs.namenode.NameNode;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -10,10 +12,13 @@ import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Random;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static sdfs.Contants.DEFAULT_DATA_NODE_PORT;
+import static sdfs.Contants.DEFAULT_NAME_NODE_PORT;
 
-class SDFSClientTest {
-
+public class SDFSStubTest {
     @BeforeAll
     static void setup() throws IOException {
         System.setProperty("sdfs.namenode.dir", Files.createTempDirectory("sdfs.namenode.data").toAbsolutePath().toString());
@@ -22,6 +27,9 @@ class SDFSClientTest {
 
     @Test
     void testSDFSFileChannel() {
+        NameNodeServer nameNodeServer = new NameNodeServer();
+        DataNodeServer dataNodeServer = new DataNodeServer();
+
         SDFSClient client = new SDFSClient();
         try {
             SDFSFileChannel newFc = client.create("/foo/bar.txt");
@@ -38,8 +46,6 @@ class SDFSClientTest {
             newFc.write(ByteBuffer.wrap(data));
 
             assertEquals(3, newFc.getNumBlocks());
-
-
             assertEquals(size, newFc.size());
             assertEquals(size, newFc.position());
 
@@ -68,4 +74,41 @@ class SDFSClientTest {
             e.printStackTrace();
         }
     }
+
+}
+
+class NameNodeServer implements Runnable {
+    private Thread t;
+    private NameNode nameNode;
+    private static int port = DEFAULT_NAME_NODE_PORT;
+
+    NameNodeServer() {
+        this.nameNode = new NameNode();
+        t = new Thread(this);
+        t.start();
+    }
+
+    public void run() {
+        nameNode.register("localhost", port++);
+        nameNode.listenRequest();
+    }
+
+}
+
+class DataNodeServer implements Runnable {
+    private Thread t;
+    private DataNode dataNode;
+    private static int port = DEFAULT_DATA_NODE_PORT;
+
+    DataNodeServer() {
+        this.dataNode = new DataNode();
+        t = new Thread(this);
+        t.start();
+    }
+
+    public void run() {
+        dataNode.register("localhost", port++);
+        dataNode.listenRequest();
+    }
+
 }

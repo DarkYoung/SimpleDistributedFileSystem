@@ -22,7 +22,7 @@ class NameNodeTest {
 
     @Test
     void testMkdir() {
-        NameNode nameNode = NameNode.getInstance();
+        NameNode nameNode = new NameNode();
 
         try {
             // Make a directory
@@ -52,7 +52,7 @@ class NameNodeTest {
 
     @Test
     void testCreate() {
-        NameNode nameNode = NameNode.getInstance();
+        NameNode nameNode = new NameNode();
 
         try {
             // Create a file
@@ -84,7 +84,8 @@ class NameNodeTest {
 
     @Test
     void testOpenAndClose() {
-        NameNode nameNode = NameNode.getInstance();
+        NameNode nameNode = new NameNode();
+        new Thread(nameNode::listenRequest).start();
 
         String aUri = "/foo/bar/a.txt";
         String bUri = "/foo/bar/b.txt";
@@ -98,7 +99,6 @@ class NameNodeTest {
             afcrw.close();
             bfcrw.close();
         } catch (IOException ignored) {
-
         }
 
         try {
@@ -123,7 +123,11 @@ class NameNodeTest {
             }
 
             // Close the readwrite channel to b.txt
-            bfcrw1.close();
+            try {
+                bfcrw1.close();
+            } catch (IOException ignored) {
+
+            }
 
             // Open b.txt as readwrite again
             try {
@@ -133,19 +137,22 @@ class NameNodeTest {
                 fail("Open a closed file as readwrite.");
             }
 
-        } catch (IOException ignored) {
-
+        } catch (FileNotFoundException ignore) {
         }
     }
 
     @Test
     void testGetOpenedFile() {
-        NameNode nameNode = NameNode.getInstance();
-
+        NameNode nameNode = new NameNode();
+        new Thread(nameNode::listenRequest).start();
         try {
             String fileUri = "/foo/bar/c.txt";
             SDFSFileChannel sdfsFileChannel = nameNode.create(fileUri);
-            sdfsFileChannel.close();
+            try {
+                sdfsFileChannel.close();
+            } catch (IOException ignored) {
+
+            }
 
             SDFSFileChannel rwfc = nameNode.openReadwrite(fileUri);
             SDFSFileChannel rofc = nameNode.openReadonly(fileUri);
@@ -171,18 +178,23 @@ class NameNodeTest {
             }
 
 
-        } catch (IOException ignored) {
+        } catch (FileAlreadyExistsException | FileNotFoundException e) {
+            e.printStackTrace();
         }
     }
 
     @Test
     void testAddBlocksAndRemoveBlocks() {
-        NameNode nameNode = NameNode.getInstance();
-
+        NameNode nameNode = new NameNode();
+        new Thread(nameNode::listenRequest).start();
         try {
             String fileUri = "/foo/bar/d.txt";
             SDFSFileChannel sdfsFileChannel = nameNode.create(fileUri);
-            sdfsFileChannel.close();
+            try {
+                sdfsFileChannel.close();
+            } catch (IOException ignored) {
+
+            }
 
             SDFSFileChannel rwfc = nameNode.openReadwrite(fileUri);
             SDFSFileChannel rofc = nameNode.openReadonly(fileUri);
@@ -214,7 +226,11 @@ class NameNodeTest {
 
             // Close rwfc
             rwfc.setFileSize(rwfc.getNumBlocks() * DataNode.BLOCK_SIZE - 1);
-            rwfc.close();
+            try {
+                rwfc.close();
+            } catch (IOException ignored) {
+
+            }
 
             // Now get another readonly channel
             SDFSFileChannel rofc3 = nameNode.openReadonly(fileUri);
@@ -253,15 +269,19 @@ class NameNodeTest {
 
             // Close rwfc2
             rwfc2.setFileSize(rwfc2.getNumBlocks() * DataNode.BLOCK_SIZE - 1);
-            rwfc2.close();
+            try {
+                rwfc2.close();
+            } catch (IOException ignored) {
+
+            }
 
             // Now get another readonly channel
             SDFSFileChannel rofc4 = nameNode.openReadonly(fileUri);
             // Now newly opened channel reveal the change
             assertEquals(rwfc2.getNumBlocks(), rofc4.getNumBlocks());
 
-        } catch (IOException ignored) {
-
+        } catch (FileAlreadyExistsException | FileNotFoundException e) {
+            e.printStackTrace();
         }
     }
 
