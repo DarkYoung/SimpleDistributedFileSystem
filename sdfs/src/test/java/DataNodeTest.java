@@ -19,7 +19,7 @@ class DataNodeTest {
     @Test
     void testWriteAndRead() {
         DataNode dataNode = new DataNode();
-
+        new Thread(dataNode::listenRequest);
         // Write offset is negative
         try {
             dataNode.write(null, 0, -1, new byte[10]);

@@ -15,8 +15,7 @@ public interface INameNode {
     /**
      * Location of the node file.
      */
-    String NAMENODE_DATA_DIR = System.getProperty("sdfs.namenode.dir") + "/";
-    String ROOT_PATH = NAMENODE_DATA_DIR.substring(0, NAMENODE_DATA_DIR.indexOf('/') + 1);
+    String NAME_NODE_DATA_DIR = System.getProperty("sdfs.namenode.dir") + System.getProperty("file.separator");
     int LOCATED_BLOCK_NUM = 3;
 
     /**

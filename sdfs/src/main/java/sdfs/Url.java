@@ -1,14 +1,12 @@
 package sdfs;
 
-import static sdfs.Contants.DEFAULT_PORT;
-
 public class Url {
     private final String host;
     private final String service;
     private volatile int port;
 
     public Url(String host, String service) {
-        this(host, DEFAULT_PORT, service);
+        this(host, Constants.DEFAULT_PORT, service);
     }
 
     public Url(String host, int port, String service) {

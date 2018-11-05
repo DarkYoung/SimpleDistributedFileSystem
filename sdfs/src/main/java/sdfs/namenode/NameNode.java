@@ -1,31 +1,23 @@
 package sdfs.namenode;
 
-import sdfs.Invocation;
-import sdfs.Registry;
-import sdfs.Response;
-import sdfs.Url;
+import sdfs.*;
 import sdfs.client.SDFSFileChannel;
 import sdfs.datanode.DataNode;
 import sdfs.filetree.*;
 import sdfs.util.FileUtil;
 
 import java.io.*;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.InvalidPathException;
 import java.util.*;
 
-import static sdfs.Contants.DEFAULT_NAME_NODE_PORT;
 
-public class NameNode implements INameNode {
+public class NameNode extends AbstractServer implements INameNode {
     private Map<UUID, SDFSFileChannel> channels;
     private DirNode rootNode;
-    private static String rootNodePath = NAMENODE_DATA_DIR + "0.node";
+    private static String rootNodePath = NAME_NODE_DATA_DIR + "0.node";
     private static int blockId = 0;
-    private int port = DEFAULT_NAME_NODE_PORT;
+    private int port;
 
     /**
      * SDFSFileChannel包括对应FileNode信息
@@ -53,7 +45,7 @@ public class NameNode implements INameNode {
             e.printStackTrace();
         }
         //默认主机：localhost，默认端口：port
-        register("localhost", port);
+        register("localhost", Constants.DEFAULT_PORT);
     }
 
     /**
@@ -67,38 +59,7 @@ public class NameNode implements INameNode {
 
     /* listening requests from client */
     public void listenRequest() {
-        //TODO
-        try (ServerSocket listener = new ServerSocket(port)) {
-            while (true) {
-                try (Socket socket = listener.accept()) {
-                    Response response = new Response();
-                    //将请求反序列化
-                    ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
-                    Object object = null;
-                    try {
-                        object = objectInputStream.readObject();
-                        //调用服务
-                        if (object instanceof Invocation) {
-                            //利用反射机制调用对应的方法
-                            Invocation invocation = (Invocation) object;
-                            Method method = getClass().getMethod(invocation.getMethodName(), invocation.getParameterTypes());
-                            response.setReturnType(method.getReturnType());
-                            response.setReturnValue(method.invoke(this, invocation.getArguments()));
-                        } else {
-                            throw new UnsupportedOperationException();
-                        }
-                    } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-                        response.setException(e);
-                    } finally {
-                        //返回结果
-                        ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-                        objectOutputStream.writeObject(response);
-                    }
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        listenRequest(port);
     }
 
     /**
@@ -302,7 +263,7 @@ public class NameNode implements INameNode {
     private void addNode(Node node) {
         try {
             ObjectOutputStream os =
-                    new ObjectOutputStream(new FileOutputStream(new File(NAMENODE_DATA_DIR + node.getNodeId() + ".node")));
+                    new ObjectOutputStream(new FileOutputStream(new File(NAME_NODE_DATA_DIR + node.getNodeId() + ".node")));
             os.writeObject(node);
             os.flush();
             os.close();

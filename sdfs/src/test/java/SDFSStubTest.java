@@ -1,6 +1,7 @@
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import sdfs.Constants;
 import sdfs.client.SDFSClient;
 import sdfs.client.SDFSFileChannel;
 import sdfs.datanode.DataNode;
@@ -15,8 +16,6 @@ import java.util.Random;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static sdfs.Contants.DEFAULT_DATA_NODE_PORT;
-import static sdfs.Contants.DEFAULT_NAME_NODE_PORT;
 
 public class SDFSStubTest {
     @BeforeAll
@@ -80,7 +79,6 @@ public class SDFSStubTest {
 class NameNodeServer implements Runnable {
     private Thread t;
     private NameNode nameNode;
-    private static int port = DEFAULT_NAME_NODE_PORT;
 
     NameNodeServer() {
         this.nameNode = new NameNode();
@@ -89,7 +87,7 @@ class NameNodeServer implements Runnable {
     }
 
     public void run() {
-        nameNode.register("localhost", port++);
+        nameNode.register("localhost", Constants.DEFAULT_NAME_NODE_PORT);
         nameNode.listenRequest();
     }
 
@@ -98,7 +96,6 @@ class NameNodeServer implements Runnable {
 class DataNodeServer implements Runnable {
     private Thread t;
     private DataNode dataNode;
-    private static int port = DEFAULT_DATA_NODE_PORT;
 
     DataNodeServer() {
         this.dataNode = new DataNode();
@@ -107,7 +104,7 @@ class DataNodeServer implements Runnable {
     }
 
     public void run() {
-        dataNode.register("localhost", port++);
+        dataNode.register("localhost", Constants.DEFAULT_DATA_NODE_PORT);
         dataNode.listenRequest();
     }
 
