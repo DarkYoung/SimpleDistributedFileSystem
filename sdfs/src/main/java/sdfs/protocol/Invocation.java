@@ -1,9 +1,11 @@
-package sdfs;
+package sdfs.protocol;
+
+import sdfs.client.Stub;
 
 import java.io.Serializable;
 
 /**
- * 请求数据结构：
+ * 请求数据结构协议：
  * 方法名
  * 参数类型
  * 参数值

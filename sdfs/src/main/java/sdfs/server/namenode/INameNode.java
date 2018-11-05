@@ -1,7 +1,7 @@
-package sdfs.namenode;
+package sdfs.server.namenode;
 
 import sdfs.client.SDFSFileChannel;
-import sdfs.filetree.LocatedBlock;
+import sdfs.server.filetree.LocatedBlock;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

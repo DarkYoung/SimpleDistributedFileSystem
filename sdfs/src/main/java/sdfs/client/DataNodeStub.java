@@ -4,12 +4,11 @@
 
 package sdfs.client;
 
-import sdfs.AbstractStub;
 import sdfs.Constants;
-import sdfs.Invocation;
-import sdfs.Url;
-import sdfs.datanode.DataNode;
-import sdfs.datanode.IDataNode;
+import sdfs.protocol.Invocation;
+import sdfs.protocol.Url;
+import sdfs.server.datanode.DataNode;
+import sdfs.server.datanode.IDataNode;
 
 import java.util.UUID;
 

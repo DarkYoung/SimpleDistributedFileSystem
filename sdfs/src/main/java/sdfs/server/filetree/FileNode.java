@@ -1,6 +1,6 @@
-package sdfs.filetree;
+package sdfs.server.filetree;
 
-import sdfs.datanode.DataNode;
+import sdfs.server.datanode.DataNode;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;

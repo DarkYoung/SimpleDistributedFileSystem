@@ -4,13 +4,12 @@
 
 package sdfs.client;
 
-import sdfs.AbstractStub;
 import sdfs.Constants;
-import sdfs.Invocation;
-import sdfs.Url;
-import sdfs.filetree.LocatedBlock;
-import sdfs.namenode.INameNode;
-import sdfs.namenode.NameNode;
+import sdfs.protocol.Invocation;
+import sdfs.protocol.Url;
+import sdfs.server.filetree.LocatedBlock;
+import sdfs.server.namenode.INameNode;
+import sdfs.server.namenode.NameNode;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

@@ -1,8 +1,8 @@
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import sdfs.client.SDFSFileChannel;
-import sdfs.datanode.DataNode;
-import sdfs.namenode.NameNode;
+import sdfs.server.datanode.DataNode;
+import sdfs.server.namenode.NameNode;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -11,19 +11,22 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static sdfs.Constants.DEFAULT_HOST;
+import static sdfs.Constants.DEFAULT_NAME_NODE_PORT;
 
 class NameNodeTest {
 
     @BeforeAll
     static void setup() throws IOException {
         System.setProperty("sdfs.namenode.dir", Files.createTempDirectory("sdfs.namenode.data").toAbsolutePath().toString());
-        System.setProperty("sdfs.datanode.dir", Files.createTempDirectory("sdfs.datanode.data").toAbsolutePath().toString());
+        System.setProperty("sdfs.server.datanode.dir", Files.createTempDirectory("sdfs.server.datanode.data").toAbsolutePath().toString());
     }
 
     @Test
     void testMkdir() {
         NameNode nameNode = new NameNode();
-
+        nameNode.register(DEFAULT_HOST, DEFAULT_NAME_NODE_PORT);
+        new Thread(nameNode::listenRequest).start();
         try {
             // Make a directory
             nameNode.mkdir("/a/");
@@ -53,7 +56,8 @@ class NameNodeTest {
     @Test
     void testCreate() {
         NameNode nameNode = new NameNode();
-
+        nameNode.register(DEFAULT_HOST, DEFAULT_NAME_NODE_PORT + 1);
+        new Thread(nameNode::listenRequest).start();
         try {
             // Create a file
             nameNode.create("/a.txt");
@@ -85,6 +89,7 @@ class NameNodeTest {
     @Test
     void testOpenAndClose() {
         NameNode nameNode = new NameNode();
+        nameNode.register(DEFAULT_HOST, DEFAULT_NAME_NODE_PORT + 2);
         new Thread(nameNode::listenRequest).start();
 
         String aUri = "/foo/bar/a.txt";
@@ -144,6 +149,7 @@ class NameNodeTest {
     @Test
     void testGetOpenedFile() {
         NameNode nameNode = new NameNode();
+        nameNode.register(DEFAULT_HOST, DEFAULT_NAME_NODE_PORT + 3);
         new Thread(nameNode::listenRequest).start();
         try {
             String fileUri = "/foo/bar/c.txt";
@@ -186,6 +192,7 @@ class NameNodeTest {
     @Test
     void testAddBlocksAndRemoveBlocks() {
         NameNode nameNode = new NameNode();
+        nameNode.register(DEFAULT_HOST, DEFAULT_NAME_NODE_PORT + 4);
         new Thread(nameNode::listenRequest).start();
         try {
             String fileUri = "/foo/bar/d.txt";

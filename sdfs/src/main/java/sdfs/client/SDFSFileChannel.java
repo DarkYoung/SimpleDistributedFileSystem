@@ -1,10 +1,10 @@
 package sdfs.client;
 
-import sdfs.datanode.IDataNode;
-import sdfs.filetree.BlockInfo;
-import sdfs.filetree.FileNode;
-import sdfs.filetree.LocatedBlock;
-import sdfs.namenode.INameNode;
+import sdfs.server.datanode.IDataNode;
+import sdfs.server.filetree.BlockInfo;
+import sdfs.server.filetree.FileNode;
+import sdfs.server.filetree.LocatedBlock;
+import sdfs.server.namenode.INameNode;
 
 import java.io.*;
 import java.nio.ByteBuffer;

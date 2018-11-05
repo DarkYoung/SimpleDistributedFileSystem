@@ -1,9 +1,9 @@
-package sdfs;
+package sdfs.protocol;
 
 import java.io.Serializable;
 
 /**
- * 响应数据结构：
+ * 响应数据结构协议：
  * 返回值类型
  * 返回值
  * 异常

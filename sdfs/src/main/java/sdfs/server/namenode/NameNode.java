@@ -1,9 +1,9 @@
-package sdfs.namenode;
+package sdfs.server.namenode;
 
-import sdfs.*;
 import sdfs.client.SDFSFileChannel;
-import sdfs.datanode.DataNode;
-import sdfs.filetree.*;
+import sdfs.server.AbstractServer;
+import sdfs.server.datanode.DataNode;
+import sdfs.server.filetree.*;
 import sdfs.util.FileUtil;
 
 import java.io.*;
@@ -13,11 +13,10 @@ import java.util.*;
 
 
 public class NameNode extends AbstractServer implements INameNode {
-    private Map<UUID, SDFSFileChannel> channels;
-    private DirNode rootNode;
+    private transient Map<UUID, SDFSFileChannel> channels;
+    private transient DirNode rootNode;
     private static String rootNodePath = NAME_NODE_DATA_DIR + "0.node";
     private static int blockId = 0;
-    private int port;
 
     /**
      * SDFSFileChannel包括对应FileNode信息
@@ -45,21 +44,20 @@ public class NameNode extends AbstractServer implements INameNode {
             e.printStackTrace();
         }
         //默认主机：localhost，默认端口：port
-        register("localhost", Constants.DEFAULT_PORT);
+//        register("localhost", Constants.DEFAULT_PORT);
     }
 
     /**
      * 将所有public函数注册到注册中心，只有注册的函数才能被远程调用
      */
     public void register(String host, int port) {
-        this.port = port;
-        Registry.register(new Url(host, port, getClass().getName()));
-
+//        unRegister();
+        register(host, port, getClass());
     }
 
     /* listening requests from client */
     public void listenRequest() {
-        listenRequest(port);
+        listenRequest(getPort());
     }
 
     /**
@@ -89,15 +87,17 @@ public class NameNode extends AbstractServer implements INameNode {
      */
     @Override
     public SDFSFileChannel openReadwrite(String fileUri) throws InvalidPathException, FileNotFoundException, IllegalStateException {
-        FileNode fileNode = (FileNode) rootNode.lookUp(fileUri, Node.TYPE.FILE);
-        if (fileNode != null) {
-            if (!readWriteTwice(fileNode)) {
-                SDFSFileChannel channel = new SDFSFileChannel(UUID.randomUUID(), fileNode, false);
-                channels.put(channel.getUuid(), channel);
-                return channel;
-            } else throw new IllegalStateException();
+        synchronized (this) {
+            FileNode fileNode = (FileNode) rootNode.lookUp(fileUri, Node.TYPE.FILE);
+            if (fileNode != null) {
+                if (!readWriteTwice(fileNode)) {
+                    SDFSFileChannel channel = new SDFSFileChannel(UUID.randomUUID(), fileNode, false);
+                    channels.put(channel.getUuid(), channel);
+                    return channel;
+                } else throw new IllegalStateException();
+            }
+            throw new FileNotFoundException();
         }
-        throw new FileNotFoundException();
     }
 
     /**

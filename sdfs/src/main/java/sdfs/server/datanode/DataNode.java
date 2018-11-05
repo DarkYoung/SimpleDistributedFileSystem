@@ -1,7 +1,7 @@
-package sdfs.datanode;
+package sdfs.server.datanode;
 
 
-import sdfs.AbstractServer;
+import sdfs.server.AbstractServer;
 import sdfs.Constants;
 
 import java.io.*;

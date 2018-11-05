@@ -4,8 +4,8 @@ import org.junit.jupiter.api.Test;
 import sdfs.Constants;
 import sdfs.client.SDFSClient;
 import sdfs.client.SDFSFileChannel;
-import sdfs.datanode.DataNode;
-import sdfs.namenode.NameNode;
+import sdfs.server.datanode.DataNode;
+import sdfs.server.namenode.NameNode;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -21,7 +21,7 @@ public class SDFSStubTest {
     @BeforeAll
     static void setup() throws IOException {
         System.setProperty("sdfs.namenode.dir", Files.createTempDirectory("sdfs.namenode.data").toAbsolutePath().toString());
-        System.setProperty("sdfs.datanode.dir", Files.createTempDirectory("sdfs.datanode.data").toAbsolutePath().toString());
+        System.setProperty("sdfs.server.datanode.dir", Files.createTempDirectory("sdfs.server.datanode.data").toAbsolutePath().toString());
     }
 
     @Test

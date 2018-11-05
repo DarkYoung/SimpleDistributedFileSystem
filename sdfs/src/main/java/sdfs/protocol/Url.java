@@ -1,4 +1,6 @@
-package sdfs;
+package sdfs.protocol;
+
+import sdfs.Constants;
 
 public class Url {
     private final String host;
