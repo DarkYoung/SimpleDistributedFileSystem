@@ -11,7 +11,10 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NonWritableChannelException;
 import java.nio.channels.SeekableByteChannel;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.UUID;
 
 public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializable {
 
@@ -33,13 +36,18 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
     private static NameNodeStub nameNodeStub = new NameNodeStub();
     private static DataNodeStub dataNodeStub = new DataNodeStub();
 
+    private final transient byte[] byteBuffers; //缓冲区
+    private long bufPos; //缓冲区指针位置
+
     public SDFSFileChannel(UUID uuid, FileNode fileNode, boolean isReadOnly) {
         this.uuid = uuid;
         this.fileNode = fileNode;
         this.isReadOnly = isReadOnly;
+        this.byteBuffers = new byte[]{0};
 
-        isOpen = true;
-        position = 0;
+        this.isOpen = true;
+        this.position = 0;
+        this.bufPos = 0;
     }
 
     /**
@@ -87,7 +95,7 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
 //                    readSize = 0;
 //                    position(position + readSize);
                     break;
-                } else if (!infoIt.hasNext()) {//最后一个块
+                } else {//最后一个块
                     int tmpSize = lastBlockSize > readSize ? readSize : lastBlockSize;
                     dst.put(dataNodeStub.read(uuid, blockIt.next().getBlockNumber(), offset, tmpSize));
                     readSize -= tmpSize;
@@ -96,7 +104,7 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
                 offset = 0;
             }
         }
-        position(position + realSize);
+        position += realSize;
         return realSize;
     }
 
@@ -115,11 +123,38 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
 
         if (fileNode == null)
             return -1;
+        //将数据写入到缓冲区
         byte[] srcBytes = src.array();
+        System.arraycopy(srcBytes, 0, byteBuffers, (int) bufPos, srcBytes.length);
 
-        int firstBlockIndex = (int) (position / BLOCK_SIZE);
-        int offset = (int) (position % BLOCK_SIZE);
+        //如果文件数据块不够，向nameNode申请新的空闲块
+        //申请的空闲块数量：如果最后一个块的空闲空间小于src%BLOCK_SIZE，则需要多申请一个空闲块
+        int newBlockNum = srcBytes.length / BLOCK_SIZE + ((position % BLOCK_SIZE + srcBytes.length % BLOCK_SIZE) < BLOCK_SIZE ? 0 : 1);
+        for (int i = 0; i < newBlockNum; i++) {
+            List<LocatedBlock> blocks = nameNodeStub.addBlocks(uuid, LOCATED_BLOCK_NUM);
+            BlockInfo info = new BlockInfo();
+            info.addLocatedBlocks(blocks);
+            fileNode.addBlockInfo(info);
+        }
+        position += srcBytes.length;
+        bufPos += srcBytes.length;
+        setFileSize(position);
+        return src.array().length;
+    }
 
+    /**
+     * 将缓冲区内容（0～bufPos）写入磁盘
+     *
+     * @return
+     */
+    private void flushWrite() {
+        if (bufPos <= 0)
+            return;
+        long oldPos = position - bufPos;
+        int firstBlockIndex = (int) (oldPos / BLOCK_SIZE);
+        int offset = (int) (oldPos % BLOCK_SIZE);
+
+        int writeByte = 0;
         Iterator<LocatedBlock> blockIt;
         Iterator<BlockInfo> infoIt;
         for (infoIt = fileNode.iterator(); infoIt.hasNext(); ) {
@@ -130,36 +165,19 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
             }
             blockIt = infoIt.next().iterator();
             if (blockIt.hasNext() && offset != 0) { //这个block没装满 //最后一个块
-                byte[] tmpBytes = Arrays.copyOfRange(srcBytes, 0, BLOCK_SIZE - offset);
+                byte[] tmpBytes = Arrays.copyOfRange(byteBuffers, writeByte, BLOCK_SIZE - offset);
                 dataNodeStub.write(uuid, blockIt.next().getBlockNumber(), offset, tmpBytes);
-                srcBytes = Arrays.copyOfRange(srcBytes, BLOCK_SIZE - offset, srcBytes.length);
-                firstBlockIndex += 1;
-                position(position + BLOCK_SIZE - offset);
-                if (infoIt.hasNext()) //覆盖指针后的块（删除）
-                    setFileSize(position);
-
+                writeByte += BLOCK_SIZE - offset;
+                offset = 0;
+            } else if (blockIt.hasNext()) {
+                if (writeByte + BLOCK_SIZE < bufPos)
+                    dataNodeStub.write(uuid, blockIt.next().getBlockNumber(), 0,
+                            Arrays.copyOfRange(byteBuffers, writeByte, writeByte + BLOCK_SIZE));
+                else dataNodeStub.write(uuid, blockIt.next().getBlockNumber(), 0,
+                        Arrays.copyOfRange(byteBuffers, writeByte, (int) bufPos));
             }
         }
-//        ArrayList<BlockInfo> infos = new ArrayList<>();
-        int lastBlockSize = srcBytes.length % BLOCK_SIZE;
-        int blockNums = srcBytes.length / BLOCK_SIZE + (lastBlockSize > 0 ? 1 : 0);
-        for (int i = 0; i < blockNums; i++) {
-            byte[] tmpBytes = Arrays.copyOfRange(srcBytes, i * BLOCK_SIZE,
-                    i * BLOCK_SIZE + (i == (blockNums - 1) ? lastBlockSize : BLOCK_SIZE));
-            List<LocatedBlock> blocks = nameNodeStub.addBlocks(uuid, LOCATED_BLOCK_NUM);
-            for (LocatedBlock block : blocks) {
-                dataNodeStub.write(uuid, block.getBlockNumber(), 0, tmpBytes);
-            }
-//            BlockInfo info = new BlockInfo();.
-//            info.addLocatedBlocks(blocks);
-//            infos.add(info);
-        }
-//        fileNode.addBlockInfos(infos);
-        position(position + srcBytes.length);
-        setFileSize(position);
-        return srcBytes.length;
     }
-
 
     /**
      * @return channel的当前读写指针位置
@@ -183,6 +201,10 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
             throw new ClosedChannelException();
         if (newPosition < 0) //非负数
             throw new IllegalArgumentException();
+        if (newPosition < position)
+            bufPos += newPosition - position;
+        if (bufPos < 0)
+            bufPos = 0;
         position = newPosition;
         return this;
     }
@@ -220,8 +242,12 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
         long fileSize = fileNode.getFileSize();
         if (fileSize <= size) //不做改变
             return this;
-        if (position > size) //position大于size，则设position等于size
+        if (position > size) { //position大于size，则设position等于size
+            bufPos += size - position;
+            if (bufPos < 0)
+                bufPos = 0;
             position = size;
+        }
         setFileSize(size);
         return this;
     }
@@ -243,11 +269,12 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
         if (!isOpen()) //channel应当处于打开状态
             return;
         isOpen = false;
-        if (isReadOnly())
-            nameNodeStub.closeReadonlyFile(uuid);
-        else
-            nameNodeStub.closeReadwriteFile(uuid, (int) (position < fileNode.getFileSize() ? fileNode.getFileSize() : position));
-        flush();
+//        if (isReadOnly())
+//            nameNodeStub.closeReadonlyFile(uuid);
+//        else
+//            nameNodeStub.closeReadwriteFile(uuid, (int) (position < fileNode.getFileSize() ? fileNode.getFileSize() : position));
+        if (!isReadOnly()) //如果当前文件流是以读写方式打开的，则将缓冲区内容写入磁盘
+            flush();
     }
 
     /**
@@ -258,6 +285,7 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
      */
     @Override
     public void flush() throws IOException {
+        flushWrite();
         ObjectOutputStream outputStream =
                 new ObjectOutputStream(new FileOutputStream(new File(NAME_NODE_DATA_DIR + getFileNodeId() + ".node")));
         outputStream.writeObject(fileNode);
