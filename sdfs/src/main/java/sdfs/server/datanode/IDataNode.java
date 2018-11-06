@@ -1,4 +1,4 @@
-package sdfs.datanode;
+package sdfs.server.datanode;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -14,7 +14,7 @@ public interface IDataNode {
     /**
      * Location of the block file.
      */
-    String DATANODE_DATA_DIR = System.getProperty("sdfs.datanode.dir") + "/";
+    String DATA_NODE_DATA_DIR = System.getProperty("sdfs.server.datanode.dir") + System.getProperty("file.separator");
 
     /**
      * Read data from a block.

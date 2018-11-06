@@ -1,4 +1,4 @@
-package sdfs.filetree;
+package sdfs.server.filetree;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;

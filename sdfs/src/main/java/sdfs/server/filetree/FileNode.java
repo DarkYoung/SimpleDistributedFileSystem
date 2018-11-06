@@ -1,4 +1,6 @@
-package sdfs.filetree;
+package sdfs.server.filetree;
+
+import sdfs.server.datanode.DataNode;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -29,6 +31,9 @@ public class FileNode extends Node implements Iterable<BlockInfo> {
 
     public void setFileSize(long fileSize) {
         this.fileSize = fileSize;
+        int blockNum = fileSize % DataNode.BLOCK_SIZE > 0 ? 1 : 0;
+        blockNum += fileSize / DataNode.BLOCK_SIZE;
+        removeLastBlocks(getNumBlocks() - blockNum);
     }
 
     public int getNumBlocks() {

@@ -4,12 +4,12 @@
 
 package sdfs.client;
 
-import sdfs.AbstractStub;
-import sdfs.Invocation;
-import sdfs.Url;
-import sdfs.filetree.LocatedBlock;
-import sdfs.namenode.INameNode;
-import sdfs.namenode.NameNode;
+import sdfs.Constants;
+import sdfs.protocol.Invocation;
+import sdfs.protocol.Url;
+import sdfs.server.filetree.LocatedBlock;
+import sdfs.server.namenode.INameNode;
+import sdfs.server.namenode.NameNode;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -18,13 +18,12 @@ import java.nio.file.InvalidPathException;
 import java.util.List;
 import java.util.UUID;
 
-import static sdfs.Contants.DEFAULT_NAME_NODE_PORT;
 
 public class NameNodeStub extends AbstractStub implements INameNode {
     private Url url;
 
     public NameNodeStub() {
-        url = new Url("", DEFAULT_NAME_NODE_PORT, NameNode.class.getName());
+        url = new Url("", Constants.DEFAULT_NAME_NODE_PORT, NameNode.class.getName());
     }
 
     @Override

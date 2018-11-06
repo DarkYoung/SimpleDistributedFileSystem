@@ -1,6 +1,8 @@
 package sdfs;
 
 
+import sdfs.protocol.Url;
+
 import java.util.*;
 
 public class Registry {
@@ -12,7 +14,15 @@ public class Registry {
 
     public static void register(Url url) {
         if (url != null && url.getService() != null && !url.getService().trim().equals("")) {
+            System.out.println(url);
             registered.add(url);
+        }
+    }
+
+    public static void unRegister(Url url) {
+        if (url != null && url.getService() != null && !url.getService().trim().equals("")) {
+            registered.remove(url);
+//            System.out.println(url);
         }
     }
 

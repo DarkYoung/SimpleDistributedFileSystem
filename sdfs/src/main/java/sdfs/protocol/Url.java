@@ -1,6 +1,6 @@
-package sdfs;
+package sdfs.protocol;
 
-import static sdfs.Contants.DEFAULT_PORT;
+import sdfs.Constants;
 
 public class Url {
     private final String host;
@@ -8,7 +8,7 @@ public class Url {
     private volatile int port;
 
     public Url(String host, String service) {
-        this(host, DEFAULT_PORT, service);
+        this(host, Constants.DEFAULT_PORT, service);
     }
 
     public Url(String host, int port, String service) {

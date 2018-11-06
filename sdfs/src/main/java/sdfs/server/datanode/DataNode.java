@@ -1,21 +1,22 @@
-package sdfs.datanode;
+package sdfs.server.datanode;
 
 
-import sdfs.Registry;
-import sdfs.Url;
+import sdfs.server.AbstractServer;
+import sdfs.Constants;
 
 import java.io.*;
 import java.util.UUID;
 
-import static sdfs.Contants.DEFAULT_DATA_NODE_PORT;
 
-public class DataNode implements IDataNode, Serializable {
+public class DataNode extends AbstractServer implements IDataNode, Serializable {
 
     private static final long serialVersionUID = 963270564695516201L;
 
-    private int port = DEFAULT_DATA_NODE_PORT;
+    private int port = Constants.DEFAULT_DATA_NODE_PORT;
 
     public DataNode() {
+        //默认主机：localhost，默认端口：port
+        register("localhost", port, this.getClass());
     }
 
 
@@ -24,13 +25,11 @@ public class DataNode implements IDataNode, Serializable {
      */
     public void register(String host, int port) {
         this.port = port;
-        Registry.register(new Url(host, port, getClass().getName()));
-
     }
 
     /* listening requests from client */
     public void listenRequest() {
-        //TODO
+        listenRequest(port);
     }
 
     /**
@@ -45,7 +44,7 @@ public class DataNode implements IDataNode, Serializable {
     @Override
     public byte[] read(UUID fileUuid, int blockNumber, int offset, int size)
             throws IllegalStateException, IndexOutOfBoundsException, IOException {
-        File file = new File(DATANODE_DATA_DIR + blockNumber + ".block");
+        File file = new File(DATA_NODE_DATA_DIR + blockNumber + ".block");
         if (!file.isFile()) {
             throw new FileNotFoundException();
         }
@@ -68,7 +67,7 @@ public class DataNode implements IDataNode, Serializable {
     @Override
     public void write(UUID fileUuid, int blockNumber, int offset, byte[] b)
             throws IllegalStateException, IndexOutOfBoundsException, IOException {
-        File file = new File(DATANODE_DATA_DIR + blockNumber + ".block");
+        File file = new File(DATA_NODE_DATA_DIR + blockNumber + ".block");
         if (offset < 0 || offset >= BLOCK_SIZE || offset + b.length > BLOCK_SIZE)
             throw new IndexOutOfBoundsException();
         BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(file));

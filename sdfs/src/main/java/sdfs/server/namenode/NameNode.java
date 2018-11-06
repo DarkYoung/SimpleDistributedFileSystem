@@ -1,31 +1,22 @@
-package sdfs.namenode;
+package sdfs.server.namenode;
 
-import sdfs.Invocation;
-import sdfs.Registry;
-import sdfs.Response;
-import sdfs.Url;
 import sdfs.client.SDFSFileChannel;
-import sdfs.datanode.DataNode;
-import sdfs.filetree.*;
+import sdfs.server.AbstractServer;
+import sdfs.server.datanode.DataNode;
+import sdfs.server.filetree.*;
 import sdfs.util.FileUtil;
 
 import java.io.*;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.InvalidPathException;
 import java.util.*;
 
-import static sdfs.Contants.DEFAULT_NAME_NODE_PORT;
 
-public class NameNode implements INameNode {
-    private Map<UUID, SDFSFileChannel> channels;
-    private DirNode rootNode;
-    private static String rootNodePath = NAMENODE_DATA_DIR + "0.node";
+public class NameNode extends AbstractServer implements INameNode {
+    private transient Map<UUID, SDFSFileChannel> channels;
+    private transient DirNode rootNode;
+    private static String rootNodePath = NAME_NODE_DATA_DIR + "0.node";
     private static int blockId = 0;
-    private int port = DEFAULT_NAME_NODE_PORT;
 
     /**
      * SDFSFileChannel包括对应FileNode信息
@@ -53,52 +44,20 @@ public class NameNode implements INameNode {
             e.printStackTrace();
         }
         //默认主机：localhost，默认端口：port
-        register("localhost", port);
+//        register("localhost", Constants.DEFAULT_PORT);
     }
 
     /**
      * 将所有public函数注册到注册中心，只有注册的函数才能被远程调用
      */
     public void register(String host, int port) {
-        this.port = port;
-        Registry.register(new Url(host, port, getClass().getName()));
-
+//        unRegister();
+        register(host, port, getClass());
     }
 
     /* listening requests from client */
     public void listenRequest() {
-        //TODO
-        try (ServerSocket listener = new ServerSocket(port)) {
-            while (true) {
-                try (Socket socket = listener.accept()) {
-                    Response response = new Response();
-                    //将请求反序列化
-                    ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
-                    Object object = null;
-                    try {
-                        object = objectInputStream.readObject();
-                        //调用服务
-                        if (object instanceof Invocation) {
-                            //利用反射机制调用对应的方法
-                            Invocation invocation = (Invocation) object;
-                            Method method = getClass().getMethod(invocation.getMethodName(), invocation.getParameterTypes());
-                            response.setReturnType(method.getReturnType());
-                            response.setReturnValue(method.invoke(this, invocation.getArguments()));
-                        } else {
-                            throw new UnsupportedOperationException();
-                        }
-                    } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-                        response.setException(e);
-                    } finally {
-                        //返回结果
-                        ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-                        objectOutputStream.writeObject(response);
-                    }
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        listenRequest(getPort());
     }
 
     /**
@@ -128,15 +87,17 @@ public class NameNode implements INameNode {
      */
     @Override
     public SDFSFileChannel openReadwrite(String fileUri) throws InvalidPathException, FileNotFoundException, IllegalStateException {
-        FileNode fileNode = (FileNode) rootNode.lookUp(fileUri, Node.TYPE.FILE);
-        if (fileNode != null) {
-            if (!readWriteTwice(fileNode)) {
-                SDFSFileChannel channel = new SDFSFileChannel(UUID.randomUUID(), fileNode, false);
-                channels.put(channel.getUuid(), channel);
-                return channel;
-            } else throw new IllegalStateException();
+        synchronized (this) {
+            FileNode fileNode = (FileNode) rootNode.lookUp(fileUri, Node.TYPE.FILE);
+            if (fileNode != null) {
+                if (!readWriteTwice(fileNode)) {
+                    SDFSFileChannel channel = new SDFSFileChannel(UUID.randomUUID(), fileNode, false);
+                    channels.put(channel.getUuid(), channel);
+                    return channel;
+                } else throw new IllegalStateException();
+            }
+            throw new FileNotFoundException();
         }
-        throw new FileNotFoundException();
     }
 
     /**
@@ -293,15 +254,7 @@ public class NameNode implements INameNode {
         SDFSFileChannel rwc = getReadwriteFile(fileUuid);
         if (blockAmount < 0 || rwc.getNumBlocks() < blockAmount)
             throw new IllegalArgumentException();
-        try {
-            FileNode node = rwc.getFileNode();
-            ObjectOutputStream outputStream =
-                    new ObjectOutputStream(new FileOutputStream(new File(NAMENODE_DATA_DIR + node.getNodeId() + ".node")));
-            node.removeLastBlocks(blockAmount);
-            outputStream.writeObject(node);
-        } catch (IOException ignored) {
-
-        }
+        rwc.setFileSize((rwc.getNumBlocks() - blockAmount) * DataNode.BLOCK_SIZE);
     }
 
     /**
@@ -310,7 +263,7 @@ public class NameNode implements INameNode {
     private void addNode(Node node) {
         try {
             ObjectOutputStream os =
-                    new ObjectOutputStream(new FileOutputStream(new File(NAMENODE_DATA_DIR + node.getNodeId() + ".node")));
+                    new ObjectOutputStream(new FileOutputStream(new File(NAME_NODE_DATA_DIR + node.getNodeId() + ".node")));
             os.writeObject(node);
             os.flush();
             os.close();

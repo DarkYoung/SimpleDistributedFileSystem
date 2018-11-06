@@ -4,21 +4,20 @@
 
 package sdfs.client;
 
-import sdfs.AbstractStub;
-import sdfs.Invocation;
-import sdfs.Url;
-import sdfs.datanode.DataNode;
-import sdfs.datanode.IDataNode;
+import sdfs.Constants;
+import sdfs.protocol.Invocation;
+import sdfs.protocol.Url;
+import sdfs.server.datanode.DataNode;
+import sdfs.server.datanode.IDataNode;
 
 import java.util.UUID;
 
-import static sdfs.Contants.DEFAULT_DATA_NODE_PORT;
 
 public class DataNodeStub extends AbstractStub implements IDataNode {
     private Url url;
 
     public DataNodeStub() {
-        url = new Url("", DEFAULT_DATA_NODE_PORT, DataNode.class.getName());
+        url = new Url("", Constants.DEFAULT_DATA_NODE_PORT, DataNode.class.getName());
     }
 
     @Override
@@ -33,7 +32,7 @@ public class DataNodeStub extends AbstractStub implements IDataNode {
     @Override
     public void write(UUID fileUuid, int blockNumber, int offset, byte[] b) throws IndexOutOfBoundsException {
         Invocation invocation = new Invocation("write",
-                new Class[]{UUID.class, int.class, int.class, byte.class},
+                new Class[]{UUID.class, int.class, int.class, byte[].class},
                 new Object[]{fileUuid, blockNumber, offset, b});
         invoke(url, invocation);
     }

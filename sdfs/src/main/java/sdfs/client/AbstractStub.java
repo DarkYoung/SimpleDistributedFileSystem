@@ -1,4 +1,9 @@
-package sdfs;
+package sdfs.client;
+
+import sdfs.protocol.Invocation;
+import sdfs.Registry;
+import sdfs.protocol.Response;
+import sdfs.protocol.Url;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
