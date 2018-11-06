@@ -23,6 +23,8 @@ public class NameNodeStub extends AbstractStub implements INameNode {
     private Url url;
 
     public NameNodeStub() {
+        //这里直接调用DataNode的类类型来获取包名
+        //实际调用时应该直接写包名（如：sdfs.server.namenode.NameNode）
         url = new Url("", Constants.DEFAULT_NAME_NODE_PORT, NameNode.class.getName());
     }
 

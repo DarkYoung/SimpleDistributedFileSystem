@@ -17,6 +17,8 @@ public class DataNodeStub extends AbstractStub implements IDataNode {
     private Url url;
 
     public DataNodeStub() {
+        //这里直接调用DataNode的类类型来获取包名
+        //实际调用时应该直接写包名（如：sdfs.server.datanode.DataNode）
         url = new Url("", Constants.DEFAULT_DATA_NODE_PORT, DataNode.class.getName());
     }
 
