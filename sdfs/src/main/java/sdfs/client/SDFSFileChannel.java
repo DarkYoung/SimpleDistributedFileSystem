@@ -20,13 +20,9 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
 
     private static final long serialVersionUID = -2871677882327951658L;
     private final UUID uuid; // File uuid
-
     private final FileNode fileNode;
-
     private final boolean isReadOnly;
-
     private boolean isOpen;
-
     private long position; //读取或写入指针位置
 
     private final int BLOCK_SIZE = IDataNode.BLOCK_SIZE;
@@ -34,20 +30,23 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
     private final String NAME_NODE_DATA_DIR = INameNode.NAME_NODE_DATA_DIR;
 
     private static NameNodeStub nameNodeStub = new NameNodeStub();
-    private static DataNodeStub dataNodeStub = new DataNodeStub();
 
-    private final transient byte[] byteBuffers; //缓冲区
+    private final int MAX_VALUE;
     private long bufPos; //缓冲区指针位置
+    private byte[] byteBuffers; //缓冲区
+    private long oldPos; //调用position函数修改position时，存储旧的position
 
     public SDFSFileChannel(UUID uuid, FileNode fileNode, boolean isReadOnly) {
         this.uuid = uuid;
         this.fileNode = fileNode;
         this.isReadOnly = isReadOnly;
-        this.byteBuffers = new byte[]{0};
 
         this.isOpen = true;
         this.position = 0;
         this.bufPos = 0;
+        this.oldPos = 0;
+        this.MAX_VALUE = 1024 * 1024;
+        this.byteBuffers = new byte[MAX_VALUE];
     }
 
     /**
@@ -65,14 +64,49 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
 
         if (fileNode == null || fileNode.getFileSize() - position <= 0)
             return -1;
+
+        int count = 0;
+        long wPos = fileNode.getFileSize() - bufPos;
+        //如果读指针小于开始写的指针，则先从服务器端读取内容，
+        if (position < wPos) {
+            int size = (int) (wPos - position);
+            if (dst.array().length <= size)
+                size = dst.array().length;
+            ByteBuffer remoteDst = ByteBuffer.wrap(new byte[size]);
+            count += read(remoteDst, position);
+            dst.put(remoteDst);
+            if (dst.array().length != size) { // 如果读取内容超过写指针，则从缓冲区读取
+                byte[] tempBytes = new byte[dst.array().length - size];
+                System.arraycopy(byteBuffers, 0, tempBytes, 0, tempBytes.length);
+                dst.put(tempBytes);
+                count += tempBytes.length;
+            }
+
+        } else {
+            byte[] bytes = new byte[dst.array().length];
+            System.arraycopy(byteBuffers, (int) (position - wPos), bytes, 0, bytes.length);
+            dst.put(bytes);
+            count += bytes.length;
+        }
+        position += count;
+        return count;
+    }
+
+    /**
+     * 如果一个块失效了，从从这个块的备份块中读取数据
+     *
+     * @param start 读指针，从start开始读取
+     * @return 实际读取的字节数
+     */
+    private int read(ByteBuffer dst, long start) {
         long fileSize = fileNode.getFileSize();
         int bufSize = dst.limit() - dst.position();
         int readSize = bufSize > fileSize ? (int) fileSize : bufSize;
         int realSize = readSize;
         int lastBlockSize = (int) (fileSize % BLOCK_SIZE);
 
-        int firstBlockIndex = (int) (position / BLOCK_SIZE);
-        int offset = (int) (position % BLOCK_SIZE);
+        int firstBlockIndex = (int) (start / BLOCK_SIZE); //从这个块开始读
+        int offset = (int) (start % BLOCK_SIZE); //从第firstBlockIndex个块的第offset个byte开始读
 
         Iterator<LocatedBlock> blockIt;
         Iterator<BlockInfo> infoIt;
@@ -83,28 +117,34 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
                 continue;
             }
             blockIt = infoIt.next().iterator();
-            if (blockIt.hasNext()) {
-                if (readSize >= BLOCK_SIZE && infoIt.hasNext()) {
-                    //不是最后一个块，并且buffer剩余空间足够放一个block的内容
-                    dst.put(dataNodeStub.read(uuid, blockIt.next().getBlockNumber(), offset, BLOCK_SIZE));
-                    readSize -= BLOCK_SIZE;
+            while (blockIt.hasNext()) { //每个块有多个备份，如果一个块失效了，那么使用另一个（对应下面的continue）
+                try {
+                    LocatedBlock block = blockIt.next();
+                    DataNodeStub dataNodeStub = new DataNodeStub(block.getHost(), block.getPort()); //根据不同的ip、端口，连接对应服务器端的DataNode
+                    if (readSize >= BLOCK_SIZE && infoIt.hasNext()) {
+                        //不是最后一个块，并且buffer剩余空间足够放一个block的内容
+                        dst.put(dataNodeStub.read(uuid, block.getBlockNumber(), offset, BLOCK_SIZE));
+                        readSize -= BLOCK_SIZE;
 //                    position(position + BLOCK_SIZE);
-                } else if (infoIt.hasNext()) {
-                    //不是最后一个块，但buffer剩余空间不够放一个block的内容
-                    dst.put(dataNodeStub.read(uuid, blockIt.next().getBlockNumber(), offset, readSize));
+                    } else if (infoIt.hasNext()) {
+                        //不是最后一个块，但buffer剩余空间不够放一个block的内容
+                        dst.put(dataNodeStub.read(uuid, block.getBlockNumber(), offset, readSize));
 //                    readSize = 0;
 //                    position(position + readSize);
-                    break;
-                } else {//最后一个块
-                    int tmpSize = lastBlockSize > readSize ? readSize : lastBlockSize;
-                    dst.put(dataNodeStub.read(uuid, blockIt.next().getBlockNumber(), offset, tmpSize));
-                    readSize -= tmpSize;
+                        break;
+                    } else {//最后一个块
+                        int tmpSize = lastBlockSize > readSize ? readSize : lastBlockSize;
+                        dst.put(dataNodeStub.read(uuid, block.getBlockNumber(), offset, tmpSize));
+                        readSize -= tmpSize;
 //                    position(position + tmpSize);
+                    }
+                    offset = 0;
+                } catch (IOException e) {
+                    continue;
                 }
-                offset = 0;
+                break;
             }
         }
-        position += realSize;
         return realSize;
     }
 
@@ -123,13 +163,22 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
 
         if (fileNode == null)
             return -1;
+
+        if (position < oldPos)
+            bufPos += position - oldPos;
+        if (bufPos < 0) {
+            bufPos = 0;
+        }
+
         //将数据写入到缓冲区
         byte[] srcBytes = src.array();
         System.arraycopy(srcBytes, 0, byteBuffers, (int) bufPos, srcBytes.length);
 
         //如果文件数据块不够，向nameNode申请新的空闲块
         //申请的空闲块数量：如果最后一个块的空闲空间小于src%BLOCK_SIZE，则需要多申请一个空闲块
-        int newBlockNum = srcBytes.length / BLOCK_SIZE + ((position % BLOCK_SIZE + srcBytes.length % BLOCK_SIZE) < BLOCK_SIZE ? 0 : 1);
+        int newBlockNum = srcBytes.length / BLOCK_SIZE +
+                ((position % BLOCK_SIZE + srcBytes.length % BLOCK_SIZE) < BLOCK_SIZE ? 0 : 1) +
+                (position % BLOCK_SIZE == 0 ? 1 : 0);
         for (int i = 0; i < newBlockNum; i++) {
             List<LocatedBlock> blocks = nameNodeStub.addBlocks(uuid, LOCATED_BLOCK_NUM);
             BlockInfo info = new BlockInfo();
@@ -144,15 +193,15 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
 
     /**
      * 将缓冲区内容（0～bufPos）写入磁盘
-     *
-     * @return
+     * 数据备份，将同样的数据写到所有备份块中
      */
     private void flushWrite() {
         if (bufPos <= 0)
             return;
-        long oldPos = position - bufPos;
-        int firstBlockIndex = (int) (oldPos / BLOCK_SIZE);
-        int offset = (int) (oldPos % BLOCK_SIZE);
+
+        long initPos = fileNode.getFileSize() - bufPos; //文件最开始写入的位置
+        int firstBlockIndex = (int) (initPos / BLOCK_SIZE);
+        int offset = (int) (initPos % BLOCK_SIZE);
 
         int writeByte = 0;
         Iterator<LocatedBlock> blockIt;
@@ -164,19 +213,29 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
                 continue;
             }
             blockIt = infoIt.next().iterator();
-            if (blockIt.hasNext() && offset != 0) { //这个block没装满 //最后一个块
-                byte[] tmpBytes = Arrays.copyOfRange(byteBuffers, writeByte, BLOCK_SIZE - offset);
-                dataNodeStub.write(uuid, blockIt.next().getBlockNumber(), offset, tmpBytes);
-                writeByte += BLOCK_SIZE - offset;
-                offset = 0;
-            } else if (blockIt.hasNext()) {
-                if (writeByte + BLOCK_SIZE < bufPos)
-                    dataNodeStub.write(uuid, blockIt.next().getBlockNumber(), 0,
-                            Arrays.copyOfRange(byteBuffers, writeByte, writeByte + BLOCK_SIZE));
-                else dataNodeStub.write(uuid, blockIt.next().getBlockNumber(), 0,
-                        Arrays.copyOfRange(byteBuffers, writeByte, (int) bufPos));
+            while (blockIt.hasNext()) { //数据备份
+                try {
+                    LocatedBlock block = blockIt.next();
+                    DataNodeStub dataNodeStub = new DataNodeStub(block.getHost(), block.getPort());
+                    if (blockIt.hasNext() && offset != 0) { //这个block没装满 //最后一个块
+                        byte[] tmpBytes = Arrays.copyOfRange(byteBuffers, writeByte, BLOCK_SIZE - offset);
+                        dataNodeStub.write(uuid, block.getBlockNumber(), offset, tmpBytes);
+                        writeByte += BLOCK_SIZE - offset;
+                        offset = 0;
+                    } else if (blockIt.hasNext()) {
+                        if (writeByte + BLOCK_SIZE < bufPos)
+                            dataNodeStub.write(uuid, block.getBlockNumber(), 0,
+                                    Arrays.copyOfRange(byteBuffers, writeByte, writeByte + BLOCK_SIZE));
+                        else dataNodeStub.write(uuid, block.getBlockNumber(), 0,
+                                Arrays.copyOfRange(byteBuffers, writeByte, (int) bufPos));
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
+        bufPos = 0;
+        byteBuffers = new byte[MAX_VALUE];
     }
 
     /**
@@ -201,10 +260,7 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
             throw new ClosedChannelException();
         if (newPosition < 0) //非负数
             throw new IllegalArgumentException();
-        if (newPosition < position)
-            bufPos += newPosition - position;
-        if (bufPos < 0)
-            bufPos = 0;
+        oldPos = position;
         position = newPosition;
         return this;
     }
@@ -243,10 +299,11 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
         if (fileSize <= size) //不做改变
             return this;
         if (position > size) { //position大于size，则设position等于size
-            bufPos += size - position;
-            if (bufPos < 0)
-                bufPos = 0;
             position = size;
+        }
+        bufPos += size - fileSize;
+        if (bufPos < 0) {
+            bufPos = 0;
         }
         setFileSize(size);
         return this;
@@ -265,7 +322,7 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
      * 将缓冲区内容写入磁盘
      */
     @Override
-    public void close() throws IOException {
+    public void close() {
         if (!isOpen()) //channel应当处于打开状态
             return;
         isOpen = false;
@@ -280,17 +337,17 @@ public class SDFSFileChannel implements SeekableByteChannel, Flushable, Serializ
     /**
      * Flushes this stream by writing any buffered output to the underlying
      * stream.
-     *
-     * @throws IOException If an I/O error occurs
      */
     @Override
-    public void flush() throws IOException {
+    public void flush() {
         flushWrite();
-        ObjectOutputStream outputStream =
-                new ObjectOutputStream(new FileOutputStream(new File(NAME_NODE_DATA_DIR + getFileNodeId() + ".node")));
-        outputStream.writeObject(fileNode);
-        outputStream.flush();
-        outputStream.close();
+        try (ObjectOutputStream outputStream =
+                     new ObjectOutputStream(new FileOutputStream(new File(NAME_NODE_DATA_DIR + getFileNodeId() + ".node")))) {
+            outputStream.writeObject(fileNode);
+            outputStream.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
