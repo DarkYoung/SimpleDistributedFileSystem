@@ -12,6 +12,14 @@ public class Url {
     }
 
     public Url(String host, int port, String service) {
+        if (host == null)
+            host = "";
+        if (port < 0) {
+            port = 0;
+        }
+        if (service == null) {
+            service = "";
+        }
         this.host = host;
         this.port = port;
         this.service = service;
@@ -31,6 +39,21 @@ public class Url {
 
     public String getService() {
         return service;
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null || obj.getClass() != getClass())
+            return false;
+        Url that = (Url) obj;
+        return host.equals(that.host) && port == that.port && service.equals(that.service);
     }
 
     @Override
