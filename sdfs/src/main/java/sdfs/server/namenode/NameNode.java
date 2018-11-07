@@ -136,7 +136,7 @@ public class NameNode extends AbstractServer implements INameNode {
     @Override
     public SDFSFileChannel getReadonlyFile(UUID fileUuid) throws IllegalStateException {
         SDFSFileChannel channel = channels.get(fileUuid);
-        if (channel == null || !channel.isReadOnly())
+        if (channel == null || !channel.isReadOnly() || !channel.isOpen())
             throw new IllegalStateException();
         return channel;
 
@@ -150,7 +150,7 @@ public class NameNode extends AbstractServer implements INameNode {
     @Override
     public SDFSFileChannel getReadwriteFile(UUID fileUuid) throws IllegalStateException {
         SDFSFileChannel channel = channels.get(fileUuid);
-        if (channel == null || channel.isReadOnly())
+        if (channel == null || channel.isReadOnly() || !channel.isOpen())
             throw new IllegalStateException();
         return channel;
     }
