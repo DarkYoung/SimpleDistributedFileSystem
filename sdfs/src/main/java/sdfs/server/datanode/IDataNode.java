@@ -14,7 +14,7 @@ public interface IDataNode {
     /**
      * Location of the block file.
      */
-    String DATA_NODE_DATA_DIR = System.getProperty("sdfs.server.datanode.dir") + System.getProperty("file.separator");
+    String DATA_NODE_DATA_DIR = System.getProperty("sdfs.datanode.dir") + System.getProperty("file.separator");
 
     /**
      * Read data from a block.

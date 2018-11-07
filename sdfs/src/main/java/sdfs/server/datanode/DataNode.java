@@ -1,8 +1,8 @@
 package sdfs.server.datanode;
 
 
-import sdfs.server.AbstractServer;
 import sdfs.Constants;
+import sdfs.server.AbstractServer;
 
 import java.io.*;
 import java.util.UUID;
@@ -16,7 +16,7 @@ public class DataNode extends AbstractServer implements IDataNode, Serializable 
 
     public DataNode() {
         //默认主机：localhost，默认端口：port
-        register("localhost", port, this.getClass());
+//        register("localhost", port, this.getClass());
     }
 
 
@@ -24,12 +24,12 @@ public class DataNode extends AbstractServer implements IDataNode, Serializable 
      * 将所有public函数注册到注册中心，只有注册的函数才能被远程调用
      */
     public void register(String host, int port) {
-        this.port = port;
+        this.register(host, port, getClass());
     }
 
     /* listening requests from client */
     public void listenRequest() {
-        listenRequest(port);
+        listenRequest(getPort());
     }
 
     /**
