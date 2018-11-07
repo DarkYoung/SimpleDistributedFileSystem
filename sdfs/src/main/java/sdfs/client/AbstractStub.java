@@ -1,7 +1,7 @@
 package sdfs.client;
 
-import sdfs.protocol.Invocation;
 import sdfs.Registry;
+import sdfs.protocol.Invocation;
 import sdfs.protocol.Response;
 import sdfs.protocol.Url;
 
@@ -13,13 +13,13 @@ import java.net.Socket;
 public abstract class AbstractStub implements Stub {
     //调用过程
     @Override
-    public Object invoke(Url url, Invocation invocation) {
+    public Object invoke(Url url, Invocation invocation) throws Exception {
         invocation.setStub(this);
         return doInvoke(url, invocation);
     }
 
-    private Object doInvoke(Url url, Invocation invocation) {
-        Url serverUrl = Registry.chooseTarget(Registry.lookupUrls(url));
+    private Object doInvoke(Url url, Invocation invocation) throws Exception {
+        Url serverUrl = Registry.chooseTarget(url);
         //连接服务器
         try {
             Socket socket = new Socket(serverUrl.getHost(), serverUrl.getPort());
@@ -35,8 +35,7 @@ public abstract class AbstractStub implements Stub {
             if (object instanceof Response) {
                 Response response = (Response) object;
                 if (response.getException() != null) {
-                    response.getException().printStackTrace();
-                    return null;
+                    throw response.getException();
                 }
                 return response.getReturnValue();
             }
