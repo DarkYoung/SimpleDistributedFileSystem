@@ -1,6 +1,8 @@
 package sdfs.server.namenode;
 
+import sdfs.Registry;
 import sdfs.client.SDFSFileChannel;
+import sdfs.protocol.Url;
 import sdfs.server.AbstractServer;
 import sdfs.server.datanode.DataNode;
 import sdfs.server.filetree.*;
@@ -17,6 +19,7 @@ public class NameNode extends AbstractServer implements INameNode {
     private transient DirNode rootNode;
     private static String rootNodePath = NAME_NODE_DATA_DIR + "0.node";
     private static int blockId = 0;
+    private final Url dataNodeUrl;
 
     /**
      * SDFSFileChannel包括对应FileNode信息
@@ -25,6 +28,7 @@ public class NameNode extends AbstractServer implements INameNode {
      * 根据不同的LocatedBlock中的blockNumber寻找到对应的DataNode节点上的数据块
      */
     public NameNode() {
+        dataNodeUrl = new Url("", 0, DataNode.class.getName());
         channels = new HashMap<>();
         try {
             ObjectInputStream inputStream =
@@ -231,7 +235,8 @@ public class NameNode extends AbstractServer implements INameNode {
         FileNode node = channel.getFileNode();
         ArrayList<LocatedBlock> blocks = new ArrayList<>();
         for (int i = 0; i < blockAmount; i++) {
-            blocks.add(new LocatedBlock(blockId++));
+            Url url = Registry.chooseTarget(dataNodeUrl);   //随机选择一个DataNode服务器
+            blocks.add(new LocatedBlock(url.getHost(), url.getPort(), blockId++));
         }
         BlockInfo info = new BlockInfo();
         info.addLocatedBlocks(blocks);
