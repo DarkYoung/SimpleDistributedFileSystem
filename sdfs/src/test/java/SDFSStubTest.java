@@ -13,21 +13,24 @@ import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Random;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SDFSStubTest {
     @BeforeAll
     static void setup() throws IOException {
         System.setProperty("sdfs.namenode.dir", Files.createTempDirectory("sdfs.namenode.data").toAbsolutePath().toString());
-        System.setProperty("sdfs.server.datanode.dir", Files.createTempDirectory("sdfs.server.datanode.data").toAbsolutePath().toString());
+        System.setProperty("sdfs.datanode.dir", Files.createTempDirectory("sdfs.datanode.data").toAbsolutePath().toString());
     }
 
     @Test
     void testSDFSFileChannel() {
         NameNodeServer nameNodeServer = new NameNodeServer();
         DataNodeServer dataNodeServer = new DataNodeServer();
+        for (int i = 1; i <= 5; i++) {//模拟生成5个DataNode服务器（同一台主机，监听不同的端口）
+            DataNode dataNode = new DataNode();
+            dataNode.register("localhost", Constants.DEFAULT_DATA_NODE_PORT + i);
+            new Thread(dataNode::listenRequest).start();
+        }
 
         SDFSClient client = new SDFSClient();
         try {
