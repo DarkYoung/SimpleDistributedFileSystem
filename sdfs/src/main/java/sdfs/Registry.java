@@ -58,8 +58,7 @@ public class Registry {
     }
 
     /**
-     * 负载均衡，选择合适的服务器服务
-     * 懒得做，直接获取第一个^_^
+     * @return 第一个有效的服务
      */
     public static Url chooseFirst(List<Url> urls) {
         if (urls != null && urls.size() > 0) {
@@ -70,6 +69,8 @@ public class Registry {
 
 
     public static Url chooseTarget(Url src) {
+        if(src.getHost() != null && !"".equals(src.getHost().trim()) && src.getPort() > 0)
+            return chooseTarget(src, StrategyName.MATCH);
         return chooseTarget(src, StrategyName.RANDOM);
     }
 
