@@ -69,7 +69,7 @@ public class Registry {
 
 
     public static Url chooseTarget(Url src) {
-        if(src.getHost() != null && !"".equals(src.getHost().trim()) && src.getPort() > 0)
+        if (src.getHost() != null && !"".equals(src.getHost().trim()) && src.getPort() > 0)
             return chooseTarget(src, StrategyName.MATCH);
         return chooseTarget(src, StrategyName.RANDOM);
     }
@@ -131,10 +131,11 @@ class RandomStrategy implements Strategy {
     @Override
     public Url getUrl(Url src, List<Url> urls) {
         int size = urls.size();
-        int index = 0;
-        if (size > 0)
+        int index;
+        if (size > 0) {
             index = (int) ((Math.random() * 1000) % size);
-        return urls.get(index);
+            return urls.get(index);
+        } else return null;
     }
 }
 

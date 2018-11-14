@@ -1,5 +1,6 @@
 package sdfs.server.namenode;
 
+import sdfs.Constants;
 import sdfs.Registry;
 import sdfs.client.SDFSFileChannel;
 import sdfs.protocol.Url;
@@ -236,7 +237,9 @@ public class NameNode extends AbstractServer implements INameNode {
         ArrayList<LocatedBlock> blocks = new ArrayList<>();
         for (int i = 0; i < blockAmount; i++) {
             Url url = Registry.chooseTarget(dataNodeUrl);   //随机选择一个DataNode服务器
-            blocks.add(new LocatedBlock(url.getHost(), url.getPort(), blockId++));
+            if (url != null)
+                blocks.add(new LocatedBlock(url.getHost(), url.getPort(), blockId++));
+            else blocks.add(new LocatedBlock(Constants.DEFAULT_HOST, Constants.DEFAULT_DATA_NODE_PORT, blockId++));
         }
         BlockInfo info = new BlockInfo();
         info.addLocatedBlocks(blocks);
