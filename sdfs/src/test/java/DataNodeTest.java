@@ -12,7 +12,7 @@ class DataNodeTest {
     @BeforeAll
     static void setup() throws IOException {
         System.setProperty("sdfs.namenode.dir", Files.createTempDirectory("sdfs.namenode.data").toAbsolutePath().toString());
-        System.setProperty("sdfs.server.datanode.dir", Files.createTempDirectory("sdfs.server.datanode.data").toAbsolutePath().toString());
+        System.setProperty("sdfs.datanode.dir", Files.createTempDirectory("sdfs.datanode.data").toAbsolutePath().toString());
     }
 
     @Test

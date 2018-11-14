@@ -19,7 +19,7 @@ class NameNodeTest {
     @BeforeAll
     static void setup() throws IOException {
         System.setProperty("sdfs.namenode.dir", Files.createTempDirectory("sdfs.namenode.data").toAbsolutePath().toString());
-        System.setProperty("sdfs.server.datanode.dir", Files.createTempDirectory("sdfs.server.datanode.data").toAbsolutePath().toString());
+        System.setProperty("sdfs.datanode.dir", Files.createTempDirectory("sdfs.datanode.data").toAbsolutePath().toString());
     }
 
     @Test
@@ -103,7 +103,7 @@ class NameNodeTest {
             // Close them first
             afcrw.close();
             bfcrw.close();
-        } catch (IOException ignored) {
+        } catch (FileAlreadyExistsException ignore) {
         }
 
         try {
@@ -128,11 +128,7 @@ class NameNodeTest {
             }
 
             // Close the readwrite channel to b.txt
-            try {
-                bfcrw1.close();
-            } catch (IOException ignored) {
-
-            }
+            bfcrw1.close();
 
             // Open b.txt as readwrite again
             try {
@@ -154,11 +150,7 @@ class NameNodeTest {
         try {
             String fileUri = "/foo/bar/c.txt";
             SDFSFileChannel sdfsFileChannel = nameNode.create(fileUri);
-            try {
-                sdfsFileChannel.close();
-            } catch (IOException ignored) {
-
-            }
+            sdfsFileChannel.close();
 
             SDFSFileChannel rwfc = nameNode.openReadwrite(fileUri);
             SDFSFileChannel rofc = nameNode.openReadonly(fileUri);
@@ -197,11 +189,7 @@ class NameNodeTest {
         try {
             String fileUri = "/foo/bar/d.txt";
             SDFSFileChannel sdfsFileChannel = nameNode.create(fileUri);
-            try {
-                sdfsFileChannel.close();
-            } catch (IOException ignored) {
-
-            }
+            sdfsFileChannel.close();
 
             SDFSFileChannel rwfc = nameNode.openReadwrite(fileUri);
             SDFSFileChannel rofc = nameNode.openReadonly(fileUri);
@@ -233,11 +221,7 @@ class NameNodeTest {
 
             // Close rwfc
             rwfc.setFileSize(rwfc.getNumBlocks() * DataNode.BLOCK_SIZE - 1);
-            try {
-                rwfc.close();
-            } catch (IOException ignored) {
-
-            }
+            rwfc.close();
 
             // Now get another readonly channel
             SDFSFileChannel rofc3 = nameNode.openReadonly(fileUri);
@@ -276,11 +260,7 @@ class NameNodeTest {
 
             // Close rwfc2
             rwfc2.setFileSize(rwfc2.getNumBlocks() * DataNode.BLOCK_SIZE - 1);
-            try {
-                rwfc2.close();
-            } catch (IOException ignored) {
-
-            }
+            rwfc2.close();
 
             // Now get another readonly channel
             SDFSFileChannel rofc4 = nameNode.openReadonly(fileUri);
